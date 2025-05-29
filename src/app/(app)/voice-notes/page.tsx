@@ -10,26 +10,28 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
-import { Alert, AlertDescription as AlertDescriptionUI, AlertTitle as AlertTitleUI } from "@/components/ui/alert"; // Renamed to avoid conflict
+import { Alert, AlertDescription as AlertDescriptionUI, AlertTitle as AlertTitleUI } from "@/components/ui/alert";
+import { transcribeAudio, type TranscribeAudioInput } from '@/ai/flows/transcribe-audio-flow';
 
 interface VoiceNote {
   id: string;
   date: Date;
   transcription: string;
-  audioUrl: string; // URL для воспроизведения аудио
+  audioUrl: string;
 }
 
 export default function VoiceNotesPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [voiceNotes, setVoiceNotes] = useState<VoiceNote[]>([]);
-  const [processing, setProcessing] = useState(false);
+  const [processing, setProcessing] = useState(false); // Used for recording stop, blob conversion, and AI transcription
   const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null);
   const { toast } = useToast();
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  // Load voice notes from local storage on mount
+
   useEffect(() => {
     const storedVoiceNotes = localStorage.getItem('voiceNotes');
     if (storedVoiceNotes) {
@@ -37,19 +39,15 @@ export default function VoiceNotesPage() {
     }
   }, []);
 
-  // Save voice notes to local storage whenever they change
   useEffect(() => {
     localStorage.setItem('voiceNotes', JSON.stringify(voiceNotes));
   }, [voiceNotes]);
 
-  // Request microphone permission on mount
   useEffect(() => {
     const getMicPermission = async () => {
       try {
-        // Запрос только для проверки, не для начала записи
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        // Важно остановить треки сразу после проверки, чтобы индикатор микрофона не горел постоянно
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach(track => track.stop()); // Stop tracks immediately after permission check
         setHasMicPermission(true);
       } catch (error) {
         console.error('Ошибка доступа к микрофону:', error);
@@ -62,28 +60,28 @@ export default function VoiceNotesPage() {
       }
     };
     getMicPermission();
+    
+    return () => { // Cleanup stream on component unmount
+        if(streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+        }
+    }
   }, [toast]);
 
   const handleStartRecording = async () => {
     if (hasMicPermission === false) {
-      toast({
-        variant: 'destructive',
-        title: 'Нет Доступа к Микрофону',
-        description: 'Разрешите доступ к микрофону для записи.',
-      });
+      toast({ variant: 'destructive', title: 'Нет Доступа к Микрофону', description: 'Разрешите доступ к микрофону для записи.' });
       return;
     }
     if (hasMicPermission === null) {
-        toast({
-          title: 'Проверка Разрешений',
-          description: 'Пожалуйста, подождите, пока проверяется доступ к микрофону.',
-        });
+        toast({ title: 'Проверка Разрешений', description: 'Пожалуйста, подождите, пока проверяется доступ к микрофону.'});
         return;
     }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
+      streamRef.current = stream; // Store stream to stop tracks later
+      mediaRecorderRef.current = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       audioChunksRef.current = [];
 
       mediaRecorderRef.current.ondataavailable = (event) => {
@@ -92,22 +90,62 @@ export default function VoiceNotesPage() {
         }
       };
 
-      mediaRecorderRef.current.onstop = () => {
+      mediaRecorderRef.current.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const audioUrl = URL.createObjectURL(audioBlob);
         
-        // Сохраняем аудиофайл (в данном случае URL)
-        const newNote: VoiceNote = {
-          id: Date.now().toString(),
-          date: new Date(),
-          transcription: "Пример расшифрованной голосовой заметки.", // Симулированная расшифровка
-          audioUrl: audioUrl,
+        // Stream tracks are stopped in the finally block after transcription or error
+
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = async () => {
+          const audioDataUri = reader.result as string;
+          let transcriptionText = "Аудио не распознано.";
+
+          try {
+            toast({ title: 'Расшифровка Аудио...', description: 'ИИ обрабатывает вашу запись. Пожалуйста, подождите.' });
+            const input: TranscribeAudioInput = { audioDataUri };
+            const transcriptionResult = await transcribeAudio(input);
+            transcriptionText = transcriptionResult.transcription;
+            toast({ title: 'Заметка Сохранена', description: 'Голосовая заметка записана и расшифрована.' });
+          } catch (transcriptionError) {
+            console.error('Ошибка расшифровки:', transcriptionError);
+            toast({
+              variant: 'destructive',
+              title: 'Ошибка Расшифровки',
+              description: 'Не удалось расшифровать аудио. Заметка сохранена с аудио.',
+            });
+          } finally {
+            const newNote: VoiceNote = {
+              id: Date.now().toString(),
+              date: new Date(),
+              transcription: transcriptionText,
+              audioUrl: audioUrl,
+            };
+            setVoiceNotes(prev => [newNote, ...prev]);
+            setProcessing(false);
+             if (streamRef.current) {
+                streamRef.current.getTracks().forEach(track => track.stop());
+                streamRef.current = null;
+            }
+          }
         };
-        setVoiceNotes(prev => [newNote, ...prev]);
-        toast({ title: 'Заметка Сохранена', description: 'Голосовая заметка записана и сохранена.' });
-        setProcessing(false);
-        // Очищаем треки после использования
-        stream.getTracks().forEach(track => track.stop());
+        reader.onerror = () => {
+            console.error("Ошибка чтения Blob как Data URL");
+            toast({ variant: 'destructive', title: 'Ошибка Обработки Аудио', description: 'Не удалось обработать записанное аудио.'});
+            const newNote: VoiceNote = {
+                id: Date.now().toString(),
+                date: new Date(),
+                transcription: "Ошибка обработки аудиофайла.",
+                audioUrl: audioUrl,
+            };
+            setVoiceNotes(prev => [newNote, ...prev]);
+            setProcessing(false);
+            if (streamRef.current) {
+                streamRef.current.getTracks().forEach(track => track.stop());
+                streamRef.current = null;
+            }
+        }
       };
       
       mediaRecorderRef.current.onerror = (event) => {
@@ -115,12 +153,15 @@ export default function VoiceNotesPage() {
         toast({ variant: 'destructive', title: 'Ошибка Записи', description: 'Произошла ошибка во время записи.'});
         setProcessing(false);
         setIsRecording(false);
-        stream.getTracks().forEach(track => track.stop());
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+        }
       }
 
       mediaRecorderRef.current.start();
       setIsRecording(true);
-      setProcessing(false); // Начинаем запись, не "обработку"
+      setProcessing(false); 
       toast({ title: 'Запись Начата', description: 'Говорите в микрофон...' });
 
     } catch (error) {
@@ -137,10 +178,10 @@ export default function VoiceNotesPage() {
 
   const handleStopRecording = () => {
     if (mediaRecorderRef.current && isRecording) {
-      setProcessing(true); // Начинаем обработку после остановки
+      setProcessing(true); 
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-      // toast про успешное сохранение будет вызван в onstop
+      toast({ title: 'Запись Остановлена', description: 'Начинается обработка и расшифровка...' });
     }
   };
 
@@ -155,8 +196,6 @@ export default function VoiceNotesPage() {
   const handleDeleteNote = (id: string) => {
     const noteToDelete = voiceNotes.find(note => note.id === id);
     if (noteToDelete && noteToDelete.audioUrl) {
-      // Освобождаем URL объекта, если он был создан через URL.createObjectURL()
-      // Это важно для предотвращения утечек памяти
       if (noteToDelete.audioUrl.startsWith('blob:')) {
          URL.revokeObjectURL(noteToDelete.audioUrl);
       }
@@ -165,11 +204,22 @@ export default function VoiceNotesPage() {
     toast({ title: 'Заметка Удалена', description: 'Голосовая заметка удалена.' });
   };
 
+  let buttonText = 'Начать Запись';
+  let buttonIcon = <Mic className="mr-2 h-5 w-5" />;
+
+  if (processing) {
+    buttonText = 'Обработка...';
+    buttonIcon = <Loader2 className="mr-2 h-5 w-5 animate-spin" />;
+  } else if (isRecording) {
+    buttonText = 'Остановить';
+    buttonIcon = <Square className="mr-2 h-5 w-5" />;
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Голосовые Заметки"
-        description="Записывайте свои мысли на ходу и получайте текстовую расшифровку."
+        description="Записывайте свои мысли на ходу и получайте AI расшифровку."
         icon={Mic}
       />
 
@@ -177,7 +227,7 @@ export default function VoiceNotesPage() {
         <CardHeader>
           <CardTitle>Запись Голосовой Заметки</CardTitle>
           <CardDescription>
-            {isRecording ? 'Идет запись... Нажмите кнопку, чтобы остановить.' : 'Нажмите кнопку, чтобы начать запись.'}
+            {isRecording ? 'Идет запись... Нажмите кнопку, чтобы остановить.' : (processing ? 'Идет обработка, подождите...' : 'Нажмите кнопку, чтобы начать запись.')}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4">
@@ -202,17 +252,11 @@ export default function VoiceNotesPage() {
           <Button
             size="lg"
             onClick={handleToggleRecording}
-            disabled={processing || hasMicPermission !== true}
+            disabled={processing || (!isRecording && hasMicPermission !== true)}
             className={`w-48 transition-all duration-300 ease-in-out ${isRecording ? 'bg-red-600 hover:bg-red-700' : 'bg-primary hover:bg-primary/90'}`}
           >
-            {processing ? (
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-            ) : isRecording ? (
-              <Square className="mr-2 h-5 w-5" />
-            ) : (
-              <Mic className="mr-2 h-5 w-5" />
-            )}
-            {processing ? 'Обработка...' : isRecording ? 'Остановить' : 'Начать Запись'}
+            {buttonIcon}
+            {buttonText}
           </Button>
         </CardContent>
       </Card>
@@ -220,7 +264,7 @@ export default function VoiceNotesPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Сохраненные Заметки</CardTitle>
-          <CardDescription>Ваши ранее записанные голосовые заметки. Расшифровка симулирована.</CardDescription>
+          <CardDescription>Ваши ранее записанные и расшифрованные голосовые заметки.</CardDescription>
         </CardHeader>
         <CardContent>
           {voiceNotes.length === 0 ? (
@@ -250,7 +294,8 @@ export default function VoiceNotesPage() {
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-sm whitespace-pre-line">{note.transcription}</p>
+                      <p className="text-sm whitespace-pre-line font-semibold">Расшифровка:</p>
+                      <p className="text-sm whitespace-pre-line mb-2">{note.transcription}</p>
                       {note.audioUrl && (
                         <div className="mt-2">
                           <audio controls src={note.audioUrl} className="w-full h-10">
@@ -269,4 +314,3 @@ export default function VoiceNotesPage() {
     </div>
   );
 }
-
