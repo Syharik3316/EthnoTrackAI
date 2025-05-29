@@ -3,6 +3,7 @@
 
 import Script from 'next/script';
 import { useEffect, useRef, useState } from 'react';
+import { useTranslations } from 'next-intl';
 
 interface YandexMapProps {
   center?: [number, number];
@@ -16,7 +17,7 @@ interface YandexMapProps {
 
 declare global {
   interface Window {
-    ymaps: any; // Yandex Maps API object
+    ymaps: any; 
   }
 }
 
@@ -25,18 +26,19 @@ interface PlacemarkCollection {
   hotels: any[];
   gasStations: any[];
   electricStations: any[];
-  [key: string]: any[]; // Index signature
+  [key: string]: any[];
 }
 
 const YandexMap: React.FC<YandexMapProps> = ({
-  center = [55.751574, 37.573856], // Default center - Moscow
-  zoom = 9, // Default zoom
+  center = [55.751574, 37.573856],
+  zoom = 9,
   className = 'w-full h-[500px] rounded-lg border border-dashed bg-muted',
   showParks,
   showHotels,
   showGasStations,
   showElectricStations,
 }) => {
+  const t = useTranslations('YandexMap');
   const mapRef = useRef<HTMLDivElement>(null);
   const [isApiLoaded, setIsApiLoaded] = useState(false);
   const [mapInstance, setMapInstance] = useState<any>(null);
@@ -52,16 +54,16 @@ const YandexMap: React.FC<YandexMapProps> = ({
 
   useEffect(() => {
     if (!apiKey) {
-      setError("API ключ Яндекс Карт не найден. Пожалуйста, добавьте NEXT_PUBLIC_YANDEX_MAPS_API_KEY в ваш .env файл и перезапустите приложение.");
+      setError(t('apiKeyMissingError'));
       return;
     }
     setError(null);
-  }, [apiKey]);
+  }, [apiKey, t]);
 
   useEffect(() => {
     if (isApiLoaded && mapRef.current && !mapInstance && !error) {
       if (typeof window.ymaps === 'undefined' || typeof window.ymaps.ready === 'undefined') {
-        setError("API Яндекс Карт загружено, но объект ymaps не найден. Проверьте консоль браузера на наличие ошибок загрузки скрипта.");
+        setError(t('apiObjectError'));
         console.error("Yandex Maps API script loaded, but window.ymaps or window.ymaps.ready is undefined. This might be due to an invalid API key or network issues.");
         return;
       }
@@ -74,20 +76,19 @@ const YandexMap: React.FC<YandexMapProps> = ({
           });
           setMapInstance(newMap);
         } catch (e) {
-          console.error("Ошибка инициализации Яндекс Карты:", e);
-          setError("Не удалось инициализировать карту. Пожалуйста, проверьте консоль для деталей.");
+          console.error("Error initializing Yandex Map:", e);
+          setError(t('initError'));
         }
       });
     }
 
-    // Cleanup function to destroy map instance when component unmounts or dependencies change that require re-initialization
     return () => {
       if (mapInstance) {
         mapInstance.destroy();
-        setMapInstance(null); // Ensure mapInstance is reset
+        setMapInstance(null);
       }
     };
-  }, [isApiLoaded, center, zoom, error]); // Removed mapInstance from deps to avoid re-init loop
+  }, [isApiLoaded, center, zoom, error, t]);
 
   const clearPlacemarks = (type: keyof PlacemarkCollection) => {
     if (mapInstance && placemarksRef.current[type]) {
@@ -102,19 +103,19 @@ const YandexMap: React.FC<YandexMapProps> = ({
     preset: string
   ) => {
     if (!mapInstance || !window.ymaps || !window.ymaps.geocode) { 
-        console.warn("Карта или API геокодирования не готовы для поиска POI:", type);
+        console.warn("Map or geocoding API not ready for POI search:", type);
         return;
     }
     clearPlacemarks(type);
 
     window.ymaps.geocode(query, {
       boundedBy: mapInstance.getBounds(),
-      results: 50 // Limit results - Increased to 50
+      results: 50
     }).then((res: any) => {
       res.geoObjects.each((obj: any) => {
         const coords = obj.geometry.getCoordinates();
-        const name = obj.properties.get('name') || 'Без названия';
-        const description = obj.properties.get('description') || 'Нет подробного описания.';
+        const name = obj.properties.get('name') || t('noName');
+        const description = obj.properties.get('description') || t('noDescription');
         
         const balloonContentBody = obj.properties.get('balloonContentBody') || '';
         let link = '';
@@ -128,16 +129,16 @@ const YandexMap: React.FC<YandexMapProps> = ({
           balloonContentHeader: name,
           balloonContentBody: `
             <p>${description}</p>
-            ${link ? `<p><a href="${link}" target="_blank" rel="noopener noreferrer">Перейти на сайт</a></p>` : ''}
+            ${link ? `<p><a href="${link}" target="_blank" rel="noopener noreferrer">${t('balloonLinkText')}</a></p>` : ''}
           `,
-          balloonContentFooter: 'Информация предоставлена Яндекс Картами',
+          balloonContentFooter: t('balloonFooter'),
         }, { preset });
         
         mapInstance.geoObjects.add(placemark);
         placemarksRef.current[type].push(placemark);
       });
     }).catch((err: any) => {
-      console.error(`Ошибка поиска "${query}" (${type}):`, err);
+      console.error(t('poiSearchError', { query, type }), err);
     });
   };
 
@@ -182,21 +183,21 @@ const YandexMap: React.FC<YandexMapProps> = ({
             setError(null); 
           }}
           onError={(e) => {
-            console.error('Ошибка загрузки скрипта Яндекс Карт:', e);
-            setError("Не удалось загрузить API Яндекс Карт. Проверьте подключение к интернету, правильность API ключа или возможные ограничения ключа. Подробности в консоли.");
+            console.error('Error loading Yandex Maps script:', e);
+            setError(t('initError')); // More generic error from translations
             setIsApiLoaded(false);
           }}
         />
       )}
-      <div ref={mapRef} className={className} aria-label="Интерактивная Яндекс Карта">
+      <div ref={mapRef} className={className} aria-label={t('mapAriaLabel')}>
         {!isApiLoaded && !mapInstance && !error && !apiKey && (
            <div className="flex items-center justify-center h-full p-4">
-            <p className="text-muted-foreground text-center">API ключ Яндекс Карт не указан. Пожалуйста, добавьте NEXT_PUBLIC_YANDEX_MAPS_API_KEY в ваш .env файл и перезапустите приложение.</p>
+            <p className="text-muted-foreground text-center">{t('apiKeyNotSpecified')}</p>
           </div>
         )}
         {!isApiLoaded && !mapInstance && !error && apiKey && (
           <div className="flex items-center justify-center h-full">
-            <p className="text-muted-foreground">Загрузка карты...</p>
+            <p className="text-muted-foreground">{t('loadingMessage')}</p>
           </div>
         )}
       </div>

@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Bot, User, CornerDownLeft, Mic, Sparkles } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { AI_AVATAR_OPTIONS } from '@/lib/constants';
+import { AI_AVATAR_OPTIONS_KEYS } from '@/lib/constants'; // Updated import
 import { aiGuideInteraction, type AiGuideInteractionInput } from '@/ai/flows/ai-guide-interaction';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
@@ -21,16 +22,18 @@ interface Message {
 }
 
 export function AiGuideChat() {
+  const t = useTranslations('AiGuideChat');
+  const tConstants = useTranslations(); // For constants like avatar options
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [selectedAvatar, setSelectedAvatar] = useState(AI_AVATAR_OPTIONS[0].value);
+  const [selectedAvatar, setSelectedAvatar] = useState(AI_AVATAR_OPTIONS_KEYS[0].value);
   const [isLoading, setIsLoading] = useState(false);
-  const [userPreferences, setUserPreferences] = useState(''); // Add state for user preferences
+  const [userPreferences, setUserPreferences] = useState('');
   const { toast } = useToast();
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Scroll to bottom when new messages are added
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
     }
@@ -38,14 +41,13 @@ export function AiGuideChat() {
   
   const handleSendMessage = async (e?: React.FormEvent<HTMLFormElement>) => {
     e?.preventDefault();
-    if (!input.trim() && messages.length === 0) { // Prevent sending empty initial message
-        toast({ title: "Ошибка", description: "Пожалуйста, введите ваш вопрос.", variant: "destructive"});
+    if (!input.trim() && messages.length === 0) {
+        toast({ title: t('errorToastTitle'), description: t('errorToastDescription'), variant: "destructive"});
         return;
     }
-    if (!input.trim() && messages.length > 0) { // Allow empty input if continuing conversation, but don't send
+    if (!input.trim() && messages.length > 0) {
         return;
     }
-
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -59,8 +61,10 @@ export function AiGuideChat() {
     try {
       const aiInput: AiGuideInteractionInput = {
         question: input,
-        userPreferences: userPreferences || undefined, // Include user preferences
+        userPreferences: userPreferences || undefined,
       };
+      // The AI guide flow itself is language-agnostic or defaults based on input.
+      // For full locale support in AI response, the flow would need modification.
       const response = await aiGuideInteraction(aiInput);
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -72,14 +76,13 @@ export function AiGuideChat() {
     } catch (error) {
       console.error('AI Guide Interaction Error:', error);
       toast({
-        title: 'Ошибка AI Гида',
-        description: 'Не удалось получить ответ от гида. Пожалуйста, попробуйте позже.',
+        title: t('aiErrorToastTitle'),
+        description: t('aiErrorToastDescription'),
         variant: 'destructive',
       });
-      // Optionally add the error message back to input or a system message
        const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: "Извините, я не смог обработать ваш запрос. Попробуйте еще раз.",
+        text: t('aiFallbackMessage'),
         sender: 'ai',
         avatar: selectedAvatar,
       };
@@ -95,10 +98,10 @@ export function AiGuideChat() {
       case 'robot':
         return <Bot className="h-8 w-8 rounded-full text-accent" />;
       case 'fairytale':
-        return <Sparkles className="h-8 w-8 rounded-full text-green-500" />; // Placeholder for fairytale
+        return <Sparkles className="h-8 w-8 rounded-full text-green-500" />;
       case 'human':
       default:
-        return <Bot className="h-8 w-8 rounded-full text-secondary-foreground" />; // Default AI avatar
+        return <Bot className="h-8 w-8 rounded-full text-secondary-foreground" />;
     }
   };
 
@@ -107,28 +110,28 @@ export function AiGuideChat() {
       <CardHeader className="border-b">
         <CardTitle className="flex items-center gap-2">
           <Sparkles className="h-6 w-6 text-primary" />
-          AI Гид
+          {t('aiGuideTitle')}
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <div className="p-4 space-y-2">
-          <Label htmlFor="avatar-select">Выберите Аватара:</Label>
+          <Label htmlFor="avatar-select">{t('selectAvatarLabel')}</Label>
           <Select value={selectedAvatar} onValueChange={setSelectedAvatar}>
             <SelectTrigger id="avatar-select" className="w-full md:w-1/2">
-              <SelectValue placeholder="Выберите тип аватара" />
+              <SelectValue placeholder={t('selectAvatarPlaceholder')} />
             </SelectTrigger>
             <SelectContent>
-              {AI_AVATAR_OPTIONS.map((option) => (
+              {AI_AVATAR_OPTIONS_KEYS.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {option.label}
+                  {tConstants(option.labelKey)}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-           <Label htmlFor="user-preferences">Ваши предпочтения (опционально):</Label>
+           <Label htmlFor="user-preferences">{t('userPreferencesLabel')}</Label>
            <Textarea
             id="user-preferences"
-            placeholder="Например: люблю историю, предпочитаю вегетарианскую еду, интересуюсь активным отдыхом..."
+            placeholder={t('userPreferencesPlaceholder')}
             value={userPreferences}
             onChange={(e) => setUserPreferences(e.target.value)}
             className="min-h-[60px]"
@@ -161,15 +164,15 @@ export function AiGuideChat() {
               <div className="flex items-end gap-2 justify-start">
                 {getAvatarIcon('ai', selectedAvatar)}
                 <div className="max-w-[70%] rounded-lg p-3 text-sm shadow bg-muted text-muted-foreground animate-pulse">
-                  Гид думает...
+                  {t('thinkingMessage')}
                 </div>
               </div>
             )}
              {messages.length === 0 && !isLoading && (
                 <div className="text-center text-muted-foreground py-10">
                     <Sparkles className="h-12 w-12 mx-auto mb-2 text-primary" />
-                    <p>Задайте вопрос вашему AI Гиду!</p>
-                    <p className="text-xs mt-1">Например: "Какие интересные места есть в Ростовской области?"</p>
+                    <p>{t('initialPrompt')}</p>
+                    <p className="text-xs mt-1">{t('initialPromptExample')}</p>
                 </div>
             )}
           </div>
@@ -179,17 +182,17 @@ export function AiGuideChat() {
         <form onSubmit={handleSendMessage} className="flex w-full items-center space-x-2">
           <Input
             type="text"
-            placeholder="Спросите что-нибудь у гида..."
+            placeholder={t('sendMessagePlaceholder')}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             className="flex-1"
             disabled={isLoading}
-            aria-label="Сообщение для AI Гида"
+            aria-label={t('sendMessageAriaLabel')}
           />
-          <Button type="submit" size="icon" disabled={isLoading} aria-label="Отправить сообщение">
+          <Button type="submit" size="icon" disabled={isLoading} aria-label={t('sendMessageAriaLabel')}>
             <CornerDownLeft className="h-4 w-4" />
           </Button>
-          <Button type="button" size="icon" variant="outline" disabled={isLoading} aria-label="Голосовой ввод (не реализовано)">
+          <Button type="button" size="icon" variant="outline" disabled={isLoading} aria-label={t('voiceInputAriaLabel')}>
             <Mic className="h-4 w-4" />
           </Button>
         </form>
