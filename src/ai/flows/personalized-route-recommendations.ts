@@ -72,6 +72,7 @@ const prompt = ai.definePrompt({
   input: {schema: PersonalizedRouteRecommendationsInputSchema},
   output: {schema: PersonalizedRouteRecommendationsOutputSchema},
   prompt: `You are an AI travel assistant specializing in creating personalized road trip itineraries through Russia.
+  Generate the response in Russian.
 
   Based on the user's interests, travel style, route length preferences and preferred regions, create a personalized route recommendation.
 
