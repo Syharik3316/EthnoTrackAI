@@ -1,13 +1,13 @@
 import { Map as MapIcon, Compass } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import Image from 'next/image';
+import YandexMap from '@/components/yandex-map'; // Импортируем новый компонент
 
 export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        title="Rfhf"
+        title="Интерактивная Карта" // Вернул заголовок, так как "Rfhf" было скорее всего тестовым
         description="Исследуйте культурные маршруты и находите интересные места."
         icon={MapIcon}
       />
@@ -20,40 +20,14 @@ export default function DashboardPage() {
               Карта Маршрутов
             </CardTitle>
             <CardDescription>
-              Здесь будет отображаться интерактивная Яндекс Карта. Для полноценной интеграции вам потребуется API-ключ.
+              Интерактивная карта для исследования маршрутов и достопримечательностей.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div 
-              className="relative w-full h-[500px] bg-muted rounded-lg flex items-center justify-center border border-dashed"
-              aria-label="Область для интерактивной карты"
-            >
-              <Image 
-                src="https://www.tapeciarnia.pl/tapety/normalne/243196_kot_oczy_spojrzenie.jpg" 
-                alt="Изображение кота с выразительными глазами" 
-                layout="fill" 
-                objectFit="cover" 
-                className="rounded-lg opacity-50"
-                data-ai-hint="cat eyes"
-              />
-            </div>
+            <YandexMap />
           </CardContent>
         </Card>
-        
-        {/* This section can be used for quick links or stats later */}
-        {/* <div className="lg:col-span-1 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Быстрые ссылки</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground">Ссылки на популярные регионы или функции.</p>
-            </CardContent>
-          </Card>
-        </div> */}
       </div>
-       {/* Consider moving AI Guide to its own page /ai-guide or a modal accessible from everywhere */}
-       {/* For now, it's removed from dashboard to simplify the page. Users can access it via sidebar. */}
     </div>
   );
 }
