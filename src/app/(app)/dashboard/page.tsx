@@ -16,6 +16,9 @@ export default function DashboardPage() {
   const [showGasStations, setShowGasStations] = useState(false);
   const [showElectricStations, setShowElectricStations] = useState(false);
 
+  // Координаты Ростова-на-Дону
+  const rostovOnDonCenter: [number, number] = [47.2333, 39.7000];
+
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
@@ -68,6 +71,8 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <YandexMap 
+              center={rostovOnDonCenter} // Используем координаты Ростова-на-Дону
+              zoom={10} // Можно настроить подходящий масштаб для Ростова
               showParks={showParks}
               showHotels={showHotels}
               showGasStations={showGasStations}
