@@ -20,7 +20,7 @@ export default function DashboardPage() {
               Карта Маршрутов
             </CardTitle>
             <CardDescription>
-              Здесь будет отображаться интерактивная карта. Для полноценной интеграции Яндекс Карт вам потребуется API-ключ.
+              Здесь будет отображаться интерактивная Яндекс Карта. Для полноценной интеграции вам потребуется API-ключ.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -36,7 +36,7 @@ export default function DashboardPage() {
                 className="rounded-lg opacity-50"
                 data-ai-hint="map route"
               />
-              <p className="z-10 text-xl font-semibold text-foreground p-4 bg-background/70 rounded-md">Интерактивная Карта (в разработке)</p>
+              <p className="z-10 text-xl font-semibold text-foreground p-4 bg-background/70 rounded-md">где находится это изображение</p>
             </div>
           </CardContent>
         </Card>
