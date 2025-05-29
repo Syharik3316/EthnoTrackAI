@@ -7,7 +7,7 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
-        title="Интерактивная Карта"
+        title="Rfhf"
         description="Исследуйте культурные маршруты и находите интересные места."
         icon={MapIcon}
       />
@@ -20,7 +20,7 @@ export default function DashboardPage() {
               Карта Маршрутов
             </CardTitle>
             <CardDescription>
-              Здесь будет отображаться интерактивная карта, например, с использованием Яндекс Карт. Для полноценной интеграции вам потребуется API-ключ от Яндекс.
+              Здесь будет отображаться интерактивная карта. Для полноценной интеграции Яндекс Карт вам потребуется API-ключ.
             </CardDescription>
           </CardHeader>
           <CardContent>
