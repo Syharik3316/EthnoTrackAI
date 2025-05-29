@@ -2,17 +2,23 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Bot, User, CornerDownLeft, Mic, Sparkles } from 'lucide-react';
-import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { AI_AVATAR_OPTIONS_KEYS } from '@/lib/constants'; // Updated import
 import { aiGuideInteraction, type AiGuideInteractionInput } from '@/ai/flows/ai-guide-interaction';
 import { useToast } from '@/hooks/use-toast';
 import { Textarea } from '@/components/ui/textarea';
+
+// Hardcoded Russian constants for rollback
+const AI_AVATAR_OPTIONS_DATA = [
+  { value: "human", label: "Человек" },
+  { value: "robot", label: "Робот" },
+  { value: "fairytale", label: "Сказочный герой" },
+];
+
 
 interface Message {
   id: string;
@@ -22,12 +28,27 @@ interface Message {
 }
 
 export function AiGuideChat() {
-  const t = useTranslations('AiGuideChat');
-  const tConstants = useTranslations(); // For constants like avatar options
+  const aiGuideTitle = "AI Гид";
+  const selectAvatarLabel = "Выберите Аватара:";
+  const selectAvatarPlaceholder = "Выберите тип аватара";
+  const userPreferencesLabel = "Ваши предпочтения (опционально):";
+  const userPreferencesPlaceholder = "Например: люблю историю, предпочитаю вегетарианскую еду, интересуюсь активным отдыхом...";
+  const thinkingMessage = "Гид думает...";
+  const initialPrompt = "Задайте вопрос вашему AI Гиду!";
+  const initialPromptExample = "Например: \"Какие интересные места есть в Ростовской области?\"";
+  const sendMessagePlaceholder = "Спросите что-нибудь у гида...";
+  const sendMessageAriaLabel = "Отправить сообщение AI Гиду";
+  const voiceInputAriaLabel = "Голосовой ввод (не реализовано)";
+  const errorToastTitle = "Ошибка";
+  const errorToastDescription = "Пожалуйста, введите ваш вопрос.";
+  const aiErrorToastTitle = "Ошибка AI Гида";
+  const aiErrorToastDescription = "Не удалось получить ответ от гида. Пожалуйста, попробуйте позже.";
+  const aiFallbackMessage = "Извините, я не смог обработать ваш запрос. Попробуйте еще раз.";
+
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [selectedAvatar, setSelectedAvatar] = useState(AI_AVATAR_OPTIONS_KEYS[0].value);
+  const [selectedAvatar, setSelectedAvatar] = useState(AI_AVATAR_OPTIONS_DATA[0].value);
   const [isLoading, setIsLoading] = useState(false);
   const [userPreferences, setUserPreferences] = useState('');
   const { toast } = useToast();
@@ -42,7 +63,7 @@ export function AiGuideChat() {
   const handleSendMessage = async (e?: React.FormEvent<HTMLFormElement>) => {
     e?.preventDefault();
     if (!input.trim() && messages.length === 0) {
-        toast({ title: t('errorToastTitle'), description: t('errorToastDescription'), variant: "destructive"});
+        toast({ title: errorToastTitle, description: errorToastDescription, variant: "destructive"});
         return;
     }
     if (!input.trim() && messages.length > 0) {
@@ -63,8 +84,6 @@ export function AiGuideChat() {
         question: input,
         userPreferences: userPreferences || undefined,
       };
-      // The AI guide flow itself is language-agnostic or defaults based on input.
-      // For full locale support in AI response, the flow would need modification.
       const response = await aiGuideInteraction(aiInput);
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -76,13 +95,13 @@ export function AiGuideChat() {
     } catch (error) {
       console.error('AI Guide Interaction Error:', error);
       toast({
-        title: t('aiErrorToastTitle'),
-        description: t('aiErrorToastDescription'),
+        title: aiErrorToastTitle,
+        description: aiErrorToastDescription,
         variant: 'destructive',
       });
        const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
-        text: t('aiFallbackMessage'),
+        text: aiFallbackMessage,
         sender: 'ai',
         avatar: selectedAvatar,
       };
@@ -110,28 +129,28 @@ export function AiGuideChat() {
       <CardHeader className="border-b">
         <CardTitle className="flex items-center gap-2">
           <Sparkles className="h-6 w-6 text-primary" />
-          {t('aiGuideTitle')}
+          {aiGuideTitle}
         </CardTitle>
       </CardHeader>
       <CardContent className="p-0">
         <div className="p-4 space-y-2">
-          <Label htmlFor="avatar-select">{t('selectAvatarLabel')}</Label>
+          <Label htmlFor="avatar-select">{selectAvatarLabel}</Label>
           <Select value={selectedAvatar} onValueChange={setSelectedAvatar}>
             <SelectTrigger id="avatar-select" className="w-full md:w-1/2">
-              <SelectValue placeholder={t('selectAvatarPlaceholder')} />
+              <SelectValue placeholder={selectAvatarPlaceholder} />
             </SelectTrigger>
             <SelectContent>
-              {AI_AVATAR_OPTIONS_KEYS.map((option) => (
+              {AI_AVATAR_OPTIONS_DATA.map((option) => (
                 <SelectItem key={option.value} value={option.value}>
-                  {tConstants(option.labelKey)}
+                  {option.label}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
-           <Label htmlFor="user-preferences">{t('userPreferencesLabel')}</Label>
+           <Label htmlFor="user-preferences">{userPreferencesLabel}</Label>
            <Textarea
             id="user-preferences"
-            placeholder={t('userPreferencesPlaceholder')}
+            placeholder={userPreferencesPlaceholder}
             value={userPreferences}
             onChange={(e) => setUserPreferences(e.target.value)}
             className="min-h-[60px]"
@@ -164,15 +183,15 @@ export function AiGuideChat() {
               <div className="flex items-end gap-2 justify-start">
                 {getAvatarIcon('ai', selectedAvatar)}
                 <div className="max-w-[70%] rounded-lg p-3 text-sm shadow bg-muted text-muted-foreground animate-pulse">
-                  {t('thinkingMessage')}
+                  {thinkingMessage}
                 </div>
               </div>
             )}
              {messages.length === 0 && !isLoading && (
                 <div className="text-center text-muted-foreground py-10">
                     <Sparkles className="h-12 w-12 mx-auto mb-2 text-primary" />
-                    <p>{t('initialPrompt')}</p>
-                    <p className="text-xs mt-1">{t('initialPromptExample')}</p>
+                    <p>{initialPrompt}</p>
+                    <p className="text-xs mt-1">{initialPromptExample}</p>
                 </div>
             )}
           </div>
@@ -182,17 +201,17 @@ export function AiGuideChat() {
         <form onSubmit={handleSendMessage} className="flex w-full items-center space-x-2">
           <Input
             type="text"
-            placeholder={t('sendMessagePlaceholder')}
+            placeholder={sendMessagePlaceholder}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             className="flex-1"
             disabled={isLoading}
-            aria-label={t('sendMessageAriaLabel')}
+            aria-label={sendMessageAriaLabel}
           />
-          <Button type="submit" size="icon" disabled={isLoading} aria-label={t('sendMessageAriaLabel')}>
+          <Button type="submit" size="icon" disabled={isLoading} aria-label={sendMessageAriaLabel}>
             <CornerDownLeft className="h-4 w-4" />
           </Button>
-          <Button type="button" size="icon" variant="outline" disabled={isLoading} aria-label={t('voiceInputAriaLabel')}>
+          <Button type="button" size="icon" variant="outline" disabled={isLoading} aria-label={voiceInputAriaLabel}>
             <Mic className="h-4 w-4" />
           </Button>
         </form>
