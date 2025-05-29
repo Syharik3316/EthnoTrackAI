@@ -29,7 +29,7 @@
     --destructive-foreground: 0 0% 98%;
 
     --border: 36 20% 85%; /* Border color */
-    --input: 36 33% 98%; /* Lighter input background for contrast on beige */
+    --input: 36 30% 92%; /* Adjusted for Switch visibility: Was 36 33% 98% */
     --ring: 15 70% 62%; /* Ring color to primary (Terracotta) */
 
     --chart-1: 15 70% 62%; /* Terracotta */
