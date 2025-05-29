@@ -29,14 +29,13 @@ export default function DashboardPage() {
               aria-label="Область для интерактивной карты"
             >
               <Image 
-                src="https://placehold.co/800x500.png" 
-                alt="Placeholder карты" 
+                src="https://www.tapeciarnia.pl/tapety/normalne/243196_kot_oczy_spojrzenie.jpg" 
+                alt="Изображение кота с выразительными глазами" 
                 layout="fill" 
                 objectFit="cover" 
                 className="rounded-lg opacity-50"
-                data-ai-hint="map route"
+                data-ai-hint="cat eyes"
               />
-              <p className="z-10 text-xl font-semibold text-foreground p-4 bg-background/70 rounded-md">где находится это изображение</p>
             </div>
           </CardContent>
         </Card>
