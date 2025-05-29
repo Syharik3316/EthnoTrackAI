@@ -101,7 +101,7 @@ const YandexMap: React.FC<YandexMapProps> = ({
     query: string, 
     preset: string
   ) => {
-    if (!mapInstance || !window.ymaps || !window.ymaps.geocode) { // Added check for ymaps.geocode
+    if (!mapInstance || !window.ymaps || !window.ymaps.geocode) { 
         console.warn("Карта или API геокодирования не готовы для поиска POI:", type);
         return;
     }
@@ -109,7 +109,7 @@ const YandexMap: React.FC<YandexMapProps> = ({
 
     window.ymaps.geocode(query, {
       boundedBy: mapInstance.getBounds(),
-      results: 20 // Limit results
+      results: 50 // Limit results - Increased to 50
     }).then((res: any) => {
       res.geoObjects.each((obj: any) => {
         const coords = obj.geometry.getCoordinates();
@@ -138,8 +138,6 @@ const YandexMap: React.FC<YandexMapProps> = ({
       });
     }).catch((err: any) => {
       console.error(`Ошибка поиска "${query}" (${type}):`, err);
-      // Optionally show a user-friendly error for this specific search
-      // toast({ title: `Ошибка поиска ${query}`, description: 'Не удалось загрузить данные.', variant: 'destructive' });
     });
   };
 
@@ -154,12 +152,12 @@ const YandexMap: React.FC<YandexMapProps> = ({
   }, [showHotels, mapInstance]);
 
   useEffect(() => {
-    if (mapInstance && showGasStations) searchAndDisplayPois('gasStations', 'АЗС', 'islands#blueFuelStationIcon'); // Changed preset
+    if (mapInstance && showGasStations) searchAndDisplayPois('gasStations', 'АЗС', 'islands#blueFuelStationIcon'); 
     else clearPlacemarks('gasStations');
   }, [showGasStations, mapInstance]);
 
   useEffect(() => {
-    if (mapInstance && showElectricStations) searchAndDisplayPois('electricStations', 'зарядная станция для электромобилей', 'islands#yellowDotIcon'); // Changed preset
+    if (mapInstance && showElectricStations) searchAndDisplayPois('electricStations', 'зарядная станция для электромобилей', 'islands#yellowDotIcon'); 
     else clearPlacemarks('electricStations');
   }, [showElectricStations, mapInstance]);
 
@@ -181,7 +179,7 @@ const YandexMap: React.FC<YandexMapProps> = ({
           onLoad={() => {
             console.log("Yandex Maps API script loaded successfully.");
             setIsApiLoaded(true);
-            setError(null); // Clear previous errors if script loads now
+            setError(null); 
           }}
           onError={(e) => {
             console.error('Ошибка загрузки скрипта Яндекс Карт:', e);
