@@ -1,12 +1,6 @@
-import {createLocalizedPathnamesNavigation} from 'next-intl/navigation';
-import {locales, localePrefix, defaultLocale} from './i18n-config';
+// This file is a placeholder to prevent parsing errors after i18n rollback.
+// If you need navigation utilities, you can define them here.
+// For example, re-exporting from next/navigation:
+// export * from 'next/navigation';
 
-export const {Link, redirect, usePathname, useRouter} =
-  createLocalizedPathnamesNavigation({
-    locales,
-    localePrefix,
-    pathnames: {
-      // If all your pathnames are the same across locales, you don't
-      // need to define anything here.
-    }
-  });
+export {}; // Ensures the file is treated as a module.
