@@ -1,29 +1,33 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Mic, Square, ListChecks, Trash2, Loader2 } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Mic, Square, ListChecks, Trash2, Loader2, AlertTriangle } from 'lucide-react';
 import { PageHeader } from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
+import { Alert, AlertDescription as AlertDescriptionUI, AlertTitle as AlertTitleUI } from "@/components/ui/alert"; // Renamed to avoid conflict
 
 interface VoiceNote {
   id: string;
   date: Date;
   transcription: string;
-  audioUrl?: string; // For future playback
+  audioUrl: string; // URL для воспроизведения аудио
 }
 
 export default function VoiceNotesPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [voiceNotes, setVoiceNotes] = useState<VoiceNote[]>([]);
-  const [currentTranscription, setCurrentTranscription] = useState('');
-  const [processing, setProcessing] = useState(false); // For simulated processing
+  const [processing, setProcessing] = useState(false);
+  const [hasMicPermission, setHasMicPermission] = useState<boolean | null>(null);
   const { toast } = useToast();
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // Load voice notes from local storage on mount
   useEffect(() => {
@@ -38,59 +42,128 @@ export default function VoiceNotesPage() {
     localStorage.setItem('voiceNotes', JSON.stringify(voiceNotes));
   }, [voiceNotes]);
 
-  const handleToggleRecording = () => {
-    // This is a placeholder for actual recording logic.
-    // In a real app, you'd use browser MediaRecorder API.
-    if (isRecording) {
-      // Stop recording
-      setIsRecording(false);
-      setProcessing(true);
-      // Simulate transcription
-      setTimeout(() => {
-        const newNoteText = currentTranscription || "Пример расшифрованной голосовой заметки.";
+  // Request microphone permission on mount
+  useEffect(() => {
+    const getMicPermission = async () => {
+      try {
+        // Запрос только для проверки, не для начала записи
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Важно остановить треки сразу после проверки, чтобы индикатор микрофона не горел постоянно
+        stream.getTracks().forEach(track => track.stop());
+        setHasMicPermission(true);
+      } catch (error) {
+        console.error('Ошибка доступа к микрофону:', error);
+        setHasMicPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Доступ к Микрофону Отклонен',
+          description: 'Пожалуйста, разрешите доступ к микрофону в настройках браузера.',
+        });
+      }
+    };
+    getMicPermission();
+  }, [toast]);
+
+  const handleStartRecording = async () => {
+    if (hasMicPermission === false) {
+      toast({
+        variant: 'destructive',
+        title: 'Нет Доступа к Микрофону',
+        description: 'Разрешите доступ к микрофону для записи.',
+      });
+      return;
+    }
+    if (hasMicPermission === null) {
+        toast({
+          title: 'Проверка Разрешений',
+          description: 'Пожалуйста, подождите, пока проверяется доступ к микрофону.',
+        });
+        return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorderRef.current = new MediaRecorder(stream);
+      audioChunksRef.current = [];
+
+      mediaRecorderRef.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorderRef.current.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        
+        // Сохраняем аудиофайл (в данном случае URL)
         const newNote: VoiceNote = {
           id: Date.now().toString(),
           date: new Date(),
-          transcription: newNoteText,
+          transcription: "Пример расшифрованной голосовой заметки.", // Симулированная расшифровка
+          audioUrl: audioUrl,
         };
         setVoiceNotes(prev => [newNote, ...prev]);
-        setCurrentTranscription('');
-        toast({ title: 'Заметка Сохранена', description: 'Голосовая заметка расшифрована и сохранена.' });
+        toast({ title: 'Заметка Сохранена', description: 'Голосовая заметка записана и сохранена.' });
         setProcessing(false);
-      }, 1500);
-    } else {
-      // Start recording
+        // Очищаем треки после использования
+        stream.getTracks().forEach(track => track.stop());
+      };
+      
+      mediaRecorderRef.current.onerror = (event) => {
+        console.error('Ошибка MediaRecorder:', event);
+        toast({ variant: 'destructive', title: 'Ошибка Записи', description: 'Произошла ошибка во время записи.'});
+        setProcessing(false);
+        setIsRecording(false);
+        stream.getTracks().forEach(track => track.stop());
+      }
+
+      mediaRecorderRef.current.start();
       setIsRecording(true);
-      setCurrentTranscription(''); // Clear previous temp transcription
+      setProcessing(false); // Начинаем запись, не "обработку"
       toast({ title: 'Запись Начата', description: 'Говорите в микрофон...' });
+
+    } catch (error) {
+      console.error('Не удалось начать запись:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Ошибка Начала Записи',
+        description: 'Не удалось получить доступ к микрофону или начать запись.',
+      });
+      setProcessing(false);
+      setIsRecording(false);
+    }
+  };
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      setProcessing(true); // Начинаем обработку после остановки
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      // toast про успешное сохранение будет вызван в onstop
+    }
+  };
+
+  const handleToggleRecording = () => {
+    if (isRecording) {
+      handleStopRecording();
+    } else {
+      handleStartRecording();
     }
   };
 
   const handleDeleteNote = (id: string) => {
+    const noteToDelete = voiceNotes.find(note => note.id === id);
+    if (noteToDelete && noteToDelete.audioUrl) {
+      // Освобождаем URL объекта, если он был создан через URL.createObjectURL()
+      // Это важно для предотвращения утечек памяти
+      if (noteToDelete.audioUrl.startsWith('blob:')) {
+         URL.revokeObjectURL(noteToDelete.audioUrl);
+      }
+    }
     setVoiceNotes(prev => prev.filter(note => note.id !== id));
     toast({ title: 'Заметка Удалена', description: 'Голосовая заметка удалена.' });
   };
-  
-  // Simulate real-time transcription for demo
-  useEffect(() => {
-    let intervalId: NodeJS.Timeout;
-    if (isRecording) {
-      const words = ["Это", "тестовая", "расшифровка", "в", "реальном", "времени.", "Просто", "для", "демонстрации."];
-      let i = 0;
-      intervalId = setInterval(() => {
-        if (i < words.length) {
-          setCurrentTranscription(prev => prev ? `${prev} ${words[i]}` : words[i]);
-          i++;
-        } else {
-           // clearInterval(intervalId); // Let it repeat for demo
-           i=0;
-           setCurrentTranscription("");
-        }
-      }, 800);
-    }
-    return () => clearInterval(intervalId);
-  }, [isRecording]);
-
 
   return (
     <div className="flex flex-col gap-8">
@@ -108,10 +181,28 @@ export default function VoiceNotesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-4">
+          {hasMicPermission === false && (
+            <Alert variant="destructive" className="w-full">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitleUI>Доступ к микрофону запрещен</AlertTitleUI>
+              <AlertDescriptionUI>
+                Пожалуйста, разрешите доступ к микрофону в настройках вашего браузера, чтобы записывать голосовые заметки.
+              </AlertDescriptionUI>
+            </Alert>
+          )}
+           {hasMicPermission === null && (
+            <Alert className="w-full">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <AlertTitleUI>Проверка доступа к микрофону...</AlertTitleUI>
+              <AlertDescriptionUI>
+                Пожалуйста, подождите.
+              </AlertDescriptionUI>
+            </Alert>
+          )}
           <Button
             size="lg"
             onClick={handleToggleRecording}
-            disabled={processing}
+            disabled={processing || hasMicPermission !== true}
             className={`w-48 transition-all duration-300 ease-in-out ${isRecording ? 'bg-red-600 hover:bg-red-700' : 'bg-primary hover:bg-primary/90'}`}
           >
             {processing ? (
@@ -123,23 +214,13 @@ export default function VoiceNotesPage() {
             )}
             {processing ? 'Обработка...' : isRecording ? 'Остановить' : 'Начать Запись'}
           </Button>
-          {(isRecording || currentTranscription) && (
-            <Textarea
-              placeholder="Здесь появится расшифровка вашей речи..."
-              value={currentTranscription}
-              readOnly={!isRecording} // Allow editing during "recording" for demo purposes
-              onChange={(e) => isRecording && setCurrentTranscription(e.target.value)}
-              rows={4}
-              className="w-full bg-muted/50"
-            />
-          )}
         </CardContent>
       </Card>
 
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Сохраненные Заметки</CardTitle>
-          <CardDescription>Ваши ранее записанные и расшифрованные голосовые заметки.</CardDescription>
+          <CardDescription>Ваши ранее записанные голосовые заметки. Расшифровка симулирована.</CardDescription>
         </CardHeader>
         <CardContent>
           {voiceNotes.length === 0 ? (
@@ -170,8 +251,13 @@ export default function VoiceNotesPage() {
                     </CardHeader>
                     <CardContent>
                       <p className="text-sm whitespace-pre-line">{note.transcription}</p>
-                      {/* Placeholder for audio playback */}
-                      {/* note.audioUrl && <audio controls src={note.audioUrl} className="mt-2 w-full" /> */}
+                      {note.audioUrl && (
+                        <div className="mt-2">
+                          <audio controls src={note.audioUrl} className="w-full h-10">
+                            Ваш браузер не поддерживает элемент <code>audio</code>.
+                          </audio>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}
@@ -183,3 +269,4 @@ export default function VoiceNotesPage() {
     </div>
   );
 }
+
